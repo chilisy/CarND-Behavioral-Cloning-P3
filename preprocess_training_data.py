@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import cv2
 import pickle
+from sklearn.model_selection import train_test_split
 
 
 def load_data_from_log(driving_log):
@@ -20,6 +21,8 @@ def load_data_from_log(driving_log):
     return steering, throttle, brake, speed, center, left, right
 
 folder_data = 'data/'
+test_data_file = 'test_data_processed.p'
+
 steering, throttle, brake, speed, center, left, right = load_data_from_log(folder_data + 'driving_log.csv')
 
 test_img = cv2.imread(folder_data+center[0])
@@ -32,6 +35,10 @@ for img_name in center:
 
 
 img_data = img_data[1:len(img_data)]
+
+test_data_file_obj = open(test_data_file, 'wb')
+
+pickle.dump(img_data, )
 
 img_data.shape
 steering.shape
