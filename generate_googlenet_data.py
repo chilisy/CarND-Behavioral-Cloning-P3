@@ -1,12 +1,8 @@
-from keras.layers.core import Dense, Activation, Flatten, Dropout
-from keras.applications import InceptionV3
-from keras.models import Sequential
-
 import pandas as pd
 import numpy as np
 import cv2
-
 import pickle
+
 
 def load_data_from_log(driving_log):
     data = pd.read_csv(driving_log, dtype={'center': str, 'left': str, 'right': str,
@@ -22,22 +18,6 @@ def load_data_from_log(driving_log):
     right = np.array(data.right)
 
     return steering, throttle, brake, speed, center, left, right
-
-def Net():
-    model = Sequential()
-    model.add(InceptionV3(include_top=False, weights='imagenet', input_shape=(160, 320, 3)))
-    model.layers[0].trainable = False
-
-    model.add(Dense(1024, activation='relu'))
-    model.add(Dropout(0.6))
-    model.add(Dense(512))
-    model.add(Dense(48))
-
-    model.add(Dense(1))
-    model.add(Activation('sigmoid'))
-
-    return model
-
 
 folder_data = 'data/'
 steering, throttle, brake, speed, center, left, right = load_data_from_log(folder_data + 'driving_log.csv')
@@ -55,5 +35,4 @@ img_data = img_data[1:len(img_data)]
 
 img_data.shape
 steering.shape
-#model = Net()
 
