@@ -1,59 +1,88 @@
-from keras.layers.core import Dense, Activation, Flatten, Dropout
-from keras.applications import InceptionV3
-from keras.models import Sequential
+from keras.layers.core import Dropout
+from keras.layers import Input, Flatten, Dense
+from keras.models import Model
+from keras.regularizers import l2
 
 import pandas as pd
 import numpy as np
-import cv2
-
 import pickle
+import tensorflow as tf
 
-def load_data_from_log(driving_log):
-    data = pd.read_csv(driving_log, dtype={'center': str, 'left': str, 'right': str,
-                                           'steering': np.float32, 'throttle': np.float32,
-                                           'brake': np.float32, 'speed': np.float32})
+flags = tf.app.flags
+FLAGS = flags.FLAGS
 
-    speed = np.array(data.speed)
-    steering = np.array(data.steering)
-    throttle = np.array(data.throttle)
-    brake = np.array(data.brake)
-    center = np.array(data.center)
-    left = np.array(data.left)
-    right = np.array(data.right)
+# command line flags
+flags.DEFINE_string('training_file', 'inception_drive_bottleneck_features_train.p',
+                    "Bottleneck features training file (.p)")
+flags.DEFINE_string('validation_file', 'inception_drive_bottleneck_features_validation.p',
+                    "Bottleneck features validation file (.p)")
+flags.DEFINE_integer('epochs', 5, "The number of epochs.")
+flags.DEFINE_integer('batch_size', 32, "The batch size.")
 
-    return steering, throttle, brake, speed, center, left, right
 
-def Net():
-    model = Sequential()
-    model.add(InceptionV3(include_top=False, weights='imagenet', input_shape=(160, 320, 3)))
-    model.layers[0].trainable = False
+def load_bottleneck_data(training_file, validation_file):
+    """
+    Utility function to load bottleneck features.
 
-    model.add(Dense(1024, activation='relu'))
-    model.add(Dropout(0.6))
-    model.add(Dense(512))
-    model.add(Dense(48))
+    Arguments:
+        training_file - String
+        validation_file - String
+    """
+    print("Training file", training_file)
+    print("Validation file", validation_file)
 
-    model.add(Dense(1))
-    model.add(Activation('sigmoid'))
+    with open(training_file, 'rb') as f:
+        train_data = pickle.load(f)
+    with open(validation_file, 'rb') as f:
+        validation_data = pickle.load(f)
+    with open('steering_angle_min_max.p', mode='rb') as f:
+        angle_min_max = pickle.load(f)
+    amin = angle_min_max['min']
+    amax = angle_min_max['max']
+
+    X_train = train_data['features']
+    y_train = train_data['labels']
+    y_train = (y_train-amin)/(amax-amin)-0.5
+    X_val = validation_data['features']
+    y_val = validation_data['labels']
+    y_val = (y_val-amin)/(amax-amin)-0.5
+
+    return X_train, y_train, X_val, y_val
+
+
+def net(input_shape):
+
+    inp = Input(shape=input_shape)
+    x = Flatten()(inp)
+    x = Dense(1024, activation='relu', W_regularizer=l2(0.01), b_regularizer=l2(0.01))(x)
+    x = Dropout(0.6)(x)
+    x = Dense(512, activation='relu')(x)
+    x = Dropout(0.8)(x)
+    x = Dense(48)(x)
+    x = Dense(1, activation='sigmoid')(x)
+    model = Model(inp, x)
+    model.compile(optimizer='adam', loss='mse')
 
     return model
 
 
-folder_data = 'data/'
-steering, throttle, brake, speed, center, left, right = load_data_from_log(folder_data + 'driving_log.csv')
+def main(_):
+    # load bottleneck data
+    X_train, y_train, X_val, y_val = load_bottleneck_data(FLAGS.training_file, FLAGS.validation_file)
 
-test_img = cv2.imread(folder_data+center[0])
-img_data = np.zeros_like(test_img)
-img_data = np.expand_dims(img_data, axis=0)
-for img_name in center:
-    img = cv2.imread(folder_data+img_name)
-    img = np.expand_dims(img, axis=0)
-    img_data = np.append(img_data, img, axis=0)
+    print(X_train.shape, y_train.shape)
+    print(X_val.shape, y_val.shape)
 
+    # define model
+    input_shape = X_train.shape[1:]
+    model = net(input_shape)
 
-img_data = img_data[1:len(img_data)]
+    # train model
+    model.fit(X_train, y_train, nb_epoch=FLAGS.epochs, batch_size=FLAGS.batch_size,
+              validation_data=(X_val, y_val), shuffle=True)
 
-img_data.shape
-steering.shape
-#model = Net()
+    model.save('model.h5')
+# parses flags and calls the `main` function above
+if __name__ == '__main__':
+    tf.app.run()
 
