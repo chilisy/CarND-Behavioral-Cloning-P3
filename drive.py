@@ -13,13 +13,9 @@ from PIL import Image
 from flask import Flask
 from io import BytesIO
 import string
+import math
 
 from keras.models import load_model
-from keras.applications.inception_v3 import preprocess_input
-from keras.applications.inception_v3 import InceptionV3
-from keras.layers import Input, AveragePooling2D
-from keras.models import Model
-import tensorflow as tf
 import pickle
 
 sio = socketio.Server()
@@ -27,10 +23,10 @@ app = Flask(__name__)
 model = None
 prev_image_array = None
 
-with open('steering_angle_min_max.p', mode='rb') as f:
-    angle_min_max = pickle.load(f)
-amin = angle_min_max['min']
-amax = angle_min_max['max']
+# with open('steering_angle_min_max.p', mode='rb') as f:
+#     angle_min_max = pickle.load(f)
+# amin = angle_min_max['min']
+# amax = angle_min_max['max']
 
 
 @sio.on('telemetry')
@@ -46,16 +42,18 @@ def telemetry(sid, data):
         imgString = data["image"]
         image = Image.open(BytesIO(base64.b64decode(imgString)))
         image_array = np.asarray(image)
-
-        img_pre = cv2.resize(image_array, (299, 299))
+        #image_array = image_array[math.floor(image_array.shape[0] / 5):image_array.shape[0] - 25, 0:image_array.shape[1]]
+        img_pre = image_array[50:140, :, :]
+        img_pre = cv2.resize(img_pre, (32, 32))
+        #img_pre = cv2.resize(image_array, (299, 299))
         img_pre = img_pre / 255. - 0.5
         img_pre = np.expand_dims(img_pre, axis=0)
 
-        img_processed = pre_model.predict(img_pre, batch_size=1)
+        #img_processed = pre_model.predict(img_pre, batch_size=1)
 
-        steering_angle = float(model.predict(img_processed, batch_size=1))
-        steering_angle = (steering_angle+0.5)*(amax-amin)+amin
-        steering_angle = steering_angle*2
+        steering_angle = float(model.predict(img_pre, batch_size=1))
+        #steering_angle = (steering_angle+0.5)*(amax-amin)+amin
+
         throttle = 0.1
         print(steering_angle, throttle)
         send_control(steering_angle, throttle)
@@ -93,11 +91,11 @@ if __name__ == '__main__':
         type=str,
         help='Path to model h5 file. Model should be on the same path.'
     )
-    parser.add_argument(
-        'pre_model',
-        type=str,
-        help='Path to model h5 file. Model should be on the same path.'
-    )
+    # parser.add_argument(
+    #     'pre_model',
+    #     type=str,
+    #     help='Path to model h5 file. Model should be on the same path.'
+    # )
     parser.add_argument(
         'image_folder',
         type=str,
@@ -107,9 +105,8 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-
     model = load_model(args.model)
-    pre_model = load_model(args.pre_model)
+    #pre_model = load_model(args.pre_model)
 
     if args.image_folder != '':
         print("Creating image folder at {}".format(args.image_folder))

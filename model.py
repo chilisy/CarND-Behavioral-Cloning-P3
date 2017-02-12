@@ -1,5 +1,6 @@
 from keras.layers.core import Dropout
 from keras.layers import Input, Flatten, Dense
+from keras.layers.advanced_activations import ELU
 from keras.models import Model
 from keras.regularizers import l2
 
@@ -17,7 +18,7 @@ flags.DEFINE_string('training_file', 'inception_drive_bottleneck_features_train.
 flags.DEFINE_string('validation_file', 'inception_drive_bottleneck_features_validation.p',
                     "Bottleneck features validation file (.p)")
 flags.DEFINE_integer('epochs', 5, "The number of epochs.")
-flags.DEFINE_integer('batch_size', 32, "The batch size.")
+flags.DEFINE_integer('batch_size', 64, "The batch size.")
 
 
 def load_bottleneck_data(training_file, validation_file):
@@ -54,12 +55,16 @@ def net(input_shape):
 
     inp = Input(shape=input_shape)
     x = Flatten()(inp)
-    x = Dense(1024, activation='relu', W_regularizer=l2(0.01), b_regularizer=l2(0.01))(x)
-    x = Dropout(0.6)(x)
-    x = Dense(512, activation='relu')(x)
     x = Dropout(0.8)(x)
-    x = Dense(48)(x)
-    x = Dense(1, activation='sigmoid')(x)
+    x = Dense(2048)(x)
+    x = ELU(alpha=1.0)(x)
+    x = Dropout(0.9)(x)
+    x = Dense(512)(x)
+    x = ELU(alpha=1.0)(x)
+    x = Dense(10)(x)
+    x = ELU(alpha=1.0)(x)
+    x = Dense(1)(x)
+    #x = ELU(alpha=1.0)(x)
     model = Model(inp, x)
     model.compile(optimizer='adam', loss='mse')
 
